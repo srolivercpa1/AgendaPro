@@ -10,10 +10,7 @@ export async function POST(request: Request) {
     const password = String(formData.get('password') ?? '');
 
     if (!email || !password) {
-      return NextResponse.json(
-        { error: 'E-mail e senha são obrigatórios.' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'E-mail e senha são obrigatórios.' }, { status: 400 });
     }
 
     const user = await prisma.user.findFirst({
@@ -24,19 +21,13 @@ export async function POST(request: Request) {
     });
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'Credenciais inválidas.' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 });
     }
 
     const validPassword = await bcrypt.compare(password, user.passwordHash);
 
     if (!validPassword) {
-      return NextResponse.json(
-        { error: 'Credenciais inválidas.' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 });
     }
 
     await createSession({
@@ -49,9 +40,6 @@ export async function POST(request: Request) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   } catch (error) {
     console.error('Erro no login:', error);
-    return NextResponse.json(
-      { error: 'Erro ao realizar login.' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro ao realizar login.' }, { status: 500 });
   }
 }
