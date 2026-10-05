@@ -1,36 +1,42 @@
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { createSession } from '@/lib/auth';
 
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6)
-});
-
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const parsed = loginSchema.safeParse(body);
+    const formData = await request.formData();
+    const email = String(formData.get('email') ?? '').trim().toLowerCase();
+    const password = String(formData.get('password') ?? '');
 
-    if (!parsed.success) {
-      return NextResponse.json({ error: 'Dados de login inválidos.' }, { status: 400 });
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: 'E-mail e senha são obrigatórios.' },
+        { status: 400 }
+      );
     }
 
-    const { email, password } = parsed.data;
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() }
+    const user = await prisma.user.findFirst({
+      where: {
+        email,
+        isActive: true
+      }
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Credenciais inválidas.' },
+        { status: 401 }
+      );
     }
 
     const validPassword = await bcrypt.compare(password, user.passwordHash);
 
     if (!validPassword) {
-      return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Credenciais inválidas.' },
+        { status: 401 }
+      );
     }
 
     await createSession({
@@ -40,8 +46,12 @@ export async function POST(request: Request) {
       role: user.role
     });
 
-    return NextResponse.json({ success: true, redirectTo: '/dashboard' });
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   } catch (error) {
-    return NextResponse.json({ error: 'Erro ao realizar login.' }, { status: 500 });
+    console.error('Erro no login:', error);
+    return NextResponse.json(
+      { error: 'Erro ao realizar login.' },
+      { status: 500 }
+    );
   }
 }
