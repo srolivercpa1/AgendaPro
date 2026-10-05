@@ -1,0 +1,257 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMINISTRATOR
+  GERENTE
+  RECEPCIONISTA
+  PROFISSIONAL
+}
+
+enum CompanyStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum PlanType {
+  BASICO
+  PRO
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAYMENT_PENDING
+  SUSPENDED
+  CANCELED
+}
+
+enum AppointmentStatus {
+  AGENDADO
+  CONFIRMADO
+  EM_ATENDIMENTO
+  FINALIZADO
+  CANCELADO
+  NAO_COMPARECEU
+}
+
+enum PaymentMethod {
+  DINHEIRO
+  PIX
+  DEBITO
+  CREDITO
+  OUTROS
+}
+
+enum BillingStatus {
+  PAGO
+  PENDENTE
+  PARCIAL
+  CANCELADO
+}
+
+model Company {
+  id              String            @id @default(cuid())
+  name            String
+  responsibleName String
+  document        String
+  phone           String?
+  whatsapp        String?
+  email           String            @unique
+  address         String?
+  city            String?
+  state           String?
+  zipCode         String?
+  status          CompanyStatus     @default(ACTIVE)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  users           User[]
+  customers       Customer[]
+  professionals   Professional[]
+  services        Service[]
+  appointments    Appointment[]
+  invoices        Invoice[]
+  notifications   Notification[]
+  settings        CompanySettings?
+  subscription    Subscription?
+
+  @@map("companies")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  companyId    String
+  name         String
+  email        String
+  passwordHash String
+  role         Role     @default(RECEPCIONISTA)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  company      Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, email])
+  @@map("users")
+}
+
+model Customer {
+  id          String       @id @default(cuid())
+  companyId   String
+  name        String
+  cpf         String?
+  birthDate   DateTime?
+  phone       String?
+  whatsapp    String?
+  email       String?
+  address     String?
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  company     Company      @relation(fields: [companyId], references: [id])
+  appointments Appointment[]
+  invoices    Invoice[]
+
+  @@map("customers")
+}
+
+model Professional {
+  id             String             @id @default(cuid())
+  companyId      String
+  name           String
+  photo          String?
+  phone          String?
+  email          String?
+  specialty      String?
+  workHours      String?
+  availableDays  String?
+  commission     Decimal?           @db.Decimal(10, 2)
+  isActive       Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  company        Company            @relation(fields: [companyId], references: [id])
+  appointments   Appointment[]
+  services       ProfessionalService[]
+
+  @@map("professionals")
+}
+
+model Service {
+  id               String             @id @default(cuid())
+  companyId        String
+  name             String
+  category         String?
+  description      String?
+  price            Decimal            @db.Decimal(10, 2)
+  durationMinutes  Int
+  commission       Decimal            @db.Decimal(10, 2)
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  company         Company            @relation(fields: [companyId], references: [id])
+  professionals    ProfessionalService[]
+  appointments    Appointment[]
+
+  @@map("services")
+}
+
+model ProfessionalService {
+  id            String       @id @default(cuid())
+  professionalId String
+  serviceId     String
+  professional  Professional @relation(fields: [professionalId], references: [id])
+  service       Service      @relation(fields: [serviceId], references: [id])
+
+  @@unique([professionalId, serviceId])
+  @@map("professional_services")
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  companyId       String
+  customerId      String
+  professionalId  String
+  serviceId       String
+  startAt         DateTime
+  endAt           DateTime
+  status          AppointmentStatus @default(AGENDADO)
+  amount          Decimal           @db.Decimal(10, 2)
+  paymentMethod   PaymentMethod?
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  company         Company           @relation(fields: [companyId], references: [id])
+  customer        Customer          @relation(fields: [customerId], references: [id])
+  professional    Professional      @relation(fields: [professionalId], references: [id])
+  service         Service           @relation(fields: [serviceId], references: [id])
+  invoices        Invoice[]
+
+  @@map("appointments")
+}
+
+model Invoice {
+  id          String       @id @default(cuid())
+  companyId   String
+  customerId  String
+  appointmentId String?
+  total       Decimal      @db.Decimal(10, 2)
+  status      BillingStatus @default(PENDENTE)
+  dueDate     DateTime?
+  paidAt      DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  company     Company      @relation(fields: [companyId], references: [id])
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@map("invoices")
+}
+
+model CompanySettings {
+  companyId        String @id
+  company          Company @relation(fields: [companyId], references: [id])
+  logoUrl          String?
+  theme            String  @default("light")
+  whatsappMessage  String?
+  pixType          String?
+  pixKey           String?
+  beneficiaryName  String?
+  timezone         String  @default("America/Sao_Paulo")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("company_settings")
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  companyId        String             @unique
+  company          Company            @relation(fields: [companyId], references: [id])
+  plan             PlanType           @default(BASICO)
+  status           SubscriptionStatus @default(TRIAL)
+  trialEndsAt      DateTime?
+  nextBillingDate  DateTime?
+  seats            Int                @default(1)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@map("subscriptions")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  companyId String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  company   Company  @relation(fields: [companyId], references: [id])
+
+  @@map("notifications")
+}
