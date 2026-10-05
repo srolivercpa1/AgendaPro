@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { createHmac } from 'crypto';
 import { prisma } from '@/lib/prisma';
 
@@ -26,11 +27,14 @@ function decodeSession(raw: string): Session | null {
   try {
     const [payload, signature] = raw.split('.');
     if (!payload || !signature) return null;
+
     const expected = createHmac('sha256', getSessionSecret()).update(payload).digest('hex');
     if (expected !== signature) return null;
 
     const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Session;
-    if (parsed.exp < Date.now() / 1000) return null;
+    if (parsed.exp < Date.now() / 1000) {
+      return null;
+    }
 
     return parsed;
   } catch {
@@ -85,7 +89,7 @@ export async function requireAuth() {
   const user = await getCurrentUser();
 
   if (!user) {
-    throw new Error('Não autenticado');
+    redirect('/login');
   }
 
   return user;
